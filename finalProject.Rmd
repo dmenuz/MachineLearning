@@ -1,0 +1,91 @@
+---
+title: "Fitness Exercise"
+author: "Diane Menuz"
+date: "February 5, 2017"
+output: html_document
+---
+##Summary
+
+###Six participants performed sets of unilateral dumbell bicep curls in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). I developed a model to predict the class based on data from accelerometers on the belt, forearm, arm, and dumbell of the participants. This type of data could to provide feedback to people working out to improve their form and prevent workout-related injuries.
+
+##Methods
+
+###I used Random Forests to build the model because this method often performs better at prediction than other methods in model comparison studies. Furthermore, this method can handle correlated variables and non-linear relationships between response and predictor. I split the training data into a training and testing dataset, with 60% in the training and 40% in the testing. I then conducted exploratory analysis on the training set, starting by looking over the field with the str() function. 
+
+```{r}
+#reading data, splitting, and initial data exploration
+dat=read.csv("C:\\Users\\diane\\Desktop\\temp\\pml-training.csv")
+test=read.csv("C:\\Users\\diane\\Desktop\\temp\\pml-testing.csv")
+library(caret)
+trainSub=createDataPartition(dat$classe, p=0.60, list=FALSE)
+train=dat[trainSub,]
+xval=dat[-trainSub,]
+```
+
+```{r, results="hide"}
+str(train)
+summary(train)
+```
+
+
+###The exploratory analysis revealed that there were many fields with a large amount of missing data and that some variables were coded as Factor with over 300 levels. Additional analysis revealed that these factor variables were mostly Null data not coded as NA. 100 fields had 11541 rows with missing data, a total of 98% of all data missing. A new data frame was created without these variables. I also removed the raw_timestamp_part_1, raw_timestamp_part_2, and cvtd_timestamp variables.
+
+```{r}
+#searching for fields mostly composed of missing data
+missingDat=rep(0, ncol(train))
+nullDat=rep(0, ncol(train))
+for (i in 1:ncol(train)){
+    x=length(which(is.na(train[,i])==TRUE))
+    missingDat[i]=x
+    nullDat[i]=length(which(train[,i]==""))
+}
+table(missingDat)
+table(nullDat)
+noDat=which(missingDat>0 | nullDat>0)
+train2=train[,-noDat]
+x=which(colnames(train2) %in% c("raw_timestamp_part_1", "raw_timestamp_part_2","cvtd_timestamp"))
+train2=train2[,-x]
+```
+
+###I created a Random Forest model with all the remaining variables and predicted the model on the test data set. The model performed perfectly, which made me a bit suspicous. The variable importance plot for the model showed that the variable "X" was by far the most important in the model. Exploration of that variable indicated that the variable appears to be an index variable, which is probably not a useful variable for actually making predictions. I reran the model without the "X" variable and got a similar result with the variable "num_window". We dropped this variable as well and ran a new Random Forest model.
+
+```{r}
+library(randomForest)
+mod1=randomForest(classe~., data=train2)
+pred1=predict(mod1, xval)
+table(pred1, xval$classe)
+train2$X[1:20]
+train3=train2[-which(colnames(train2)=="X")]
+```
+
+```{r}
+varImpPlot(mod1, main="")
+```
+
+###Figure 1. Variable importance plot for model predicting class of weight lifting, showing the importance of the index variable "X"
+
+```{r, eval=FALSE}
+mod2=randomForest(classe~., data=train3)
+pred2=predict(mod2, xval)
+table(pred2, xval$classe)
+varImpPlot(mod2)
+train3$num_window[1:100]
+```
+
+```{r}
+train4=train3[-which(colnames(train3)=="num_window")]
+mod3=randomForest(classe~., data=train4)
+pred3=predict(mod3, xval)
+x=table(pred3, xval$classe)
+accuracy=sum(diag(x))/sum(x)
+```
+
+```{r}
+varImpPlot(mod3, main="")
+```
+
+###Figure 2. Variable importance plot for the final model predicting class of weight lifting.
+
+##Results
+
+###The final Random Forest model accurately predicted `r round(accuracy, 4)*100` of the testing data. I expect a similar level of accuracy when the model is used to predict the 20 values in the "pml-testing.csv" dataset.
